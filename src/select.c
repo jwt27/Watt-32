@@ -545,9 +545,8 @@ static int read_select (int s, Socket *socket)
   {
     sock_type *sk = (sock_type*) socket->tcp_sock;
 
-    if ((socket->so_state & SS_NBIO) &&
-        sk->tcp.state == tcp_StateESTAB &&
-        socket->so_error == EALREADY)
+    if (socket->so_error == EALREADY &&           /* Non-blocking connect() */
+        sk->tcp.state == tcp_StateESTAB)
        socket->so_error = 0;
 
     if (sock_signalled(socket,READ_STATE_MASK) || /* signalled for read_s() */
@@ -603,7 +602,7 @@ static int write_select (int s, Socket *socket)
 
     if (sk->tcp.state == tcp_StateESTAB)
     {
-      if ((socket->so_state & SS_NBIO) && socket->so_error == EALREADY)
+      if (socket->so_error == EALREADY)          /* Non-blocking connect() */
          socket->so_error = 0;
 
       if (sock_tbleft(sk) > socket->send_lowat)  /* Tx room above low-limit */
