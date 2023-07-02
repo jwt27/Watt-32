@@ -548,7 +548,7 @@ static int read_select (int s, Socket *socket)
     if ((socket->so_state & SS_NBIO) &&
         sk->tcp.state == tcp_StateESTAB &&
         socket->so_error == EALREADY)
-       socket->so_error = EISCONN;
+       socket->so_error = 0;
 
     if (sock_signalled(socket,READ_STATE_MASK) || /* signalled for read_s() */
         sk->tcp.state >= tcp_StateLASTACK      || /* got FIN from peer */
@@ -604,7 +604,7 @@ static int write_select (int s, Socket *socket)
     if (sk->tcp.state == tcp_StateESTAB)
     {
       if ((socket->so_state & SS_NBIO) && socket->so_error == EALREADY)
-         socket->so_error = EISCONN;
+         socket->so_error = 0;
 
       if (sock_tbleft(sk) > socket->send_lowat)  /* Tx room above low-limit */
          return (1);
