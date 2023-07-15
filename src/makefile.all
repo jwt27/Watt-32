@@ -475,7 +475,7 @@ $(OBJPATH)objects.arg: $(MAKE_FILE)
 
 $(C_ARGS): $(MAKE_FILE)
 	@copy &&|
-	  $(CFLAGS)
+	  $(CFLAGS) $(USER_CFLAGS)
 | $<
 
 $(OBJPATH)asmpkt.obj:   asmpkt.asm
@@ -656,7 +656,7 @@ $(OBJPATH)cpumodel.obj: cpumodel.asm
 
 $(C_ARGS): $(__MAKEFILES__)
 	%create $^@
-	@%append $^@ $(CFLAGS) $(I_CFLAGS)
+	@%append $^@ $(CFLAGS) $(I_CFLAGS) $(USER_CFLAGS)
 
 $(LIB_ARGS): $(__MAKEFILES__)
 	%create $^@
@@ -804,7 +804,7 @@ all: $(C_ARGS) $(OBJPATH)cflags.h $(OBJPATH)cflagsbf.h $(TARGETS)
 	@echo All done
 
 $(C_ARGS): $(MAKE_FILE)
-	@echo -c $(CFLAGS) > $@
+	@echo -c $(CFLAGS) $(USER_CFLAGS) > $@
 
 $(LINK_ARGS): $(MAKE_FILE)
 	@echo $(LDFLAGS) $(OBJS) $(RESOURCE) $(EX_LIBS) > $@
@@ -1485,7 +1485,7 @@ lang.c: lang.l
   endif
 
 $(C_ARGS): $(MAKEFILE_LIST)
-	$(call create_response_file, $@, -c $(CFLAGS))
+	$(call create_response_file, $@, -c $(CFLAGS) $(USER_CFLAGS))
 
 $(LIB_ARGS): $(OBJS) $(MAKEFILE_LIST)
 	$(call create_response_file, $@, $(OBJS))
@@ -1504,19 +1504,19 @@ $(LINK_ARGS): $(OBJS) $(RESOURCE) $(MAKEFILE_LIST)
   # GNU-Make rules uses shell 'sh' commands:
   #
 $(OBJPATH)cflags.h: $(MAKEFILE_LIST)
-	echo 'const char *w32_cflags = "$(CFLAGS)";' > $(OBJPATH)cflags.h
-	echo 'const char *w32_cc     = "$(CC)";'    >> $(OBJPATH)cflags.h
+	echo 'const char *w32_cflags = "$(CFLAGS) $(USER_CFLAGS)";' > $(OBJPATH)cflags.h
+	echo 'const char *w32_cc     = "$(CC)";'                   >> $(OBJPATH)cflags.h
 
 @elifdef WATCOM
 $(OBJPATH)cflags.h: $(__MAKEFILES__)
 	%create $^@
-	@%append $^@ const char *w32_cflags = "$(CFLAGS)";
+	@%append $^@ const char *w32_cflags = "$(CFLAGS) $(USER_CFLAGS)";
 	@%append $^@ const char *w32_cc     = "$(CC)";
 
 @elifdef BORLAND
 $(OBJPATH)cflags.h: $(MAKE_FILE)
-	echo const char *w32_cflags = '"$(CFLAGS)";' > $(OBJPATH)cflags.h
-	echo const char *w32_cc     = '"$(CC)";'    >> $(OBJPATH)cflags.h
+	echo const char *w32_cflags = '"$(CFLAGS) $(USER_CFLAGS)";' > $(OBJPATH)cflags.h
+	echo const char *w32_cc     = '"$(CC)";'                   >> $(OBJPATH)cflags.h
 
 @else
 #
@@ -1527,6 +1527,7 @@ $(OBJPATH)cflags.h: $(MAKE_FILE)
 $(OBJPATH)cflags.h: $(MAKE_FILE)
 	echo const char *w32_cflags =       > $(OBJPATH)cflags.h
 	echo            "$(CFLAGS)"        >> $(OBJPATH)cflags.h
+	echo            "$(USER_CFLAGS)"   >> $(OBJPATH)cflags.h
 	echo            "$(EXTRA_CFLAGS);" >> $(OBJPATH)cflags.h
 	echo const char *w32_cc = "$(CC)"; >> $(OBJPATH)cflags.h
 @endif
