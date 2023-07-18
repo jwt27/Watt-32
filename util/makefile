@@ -1,5 +1,5 @@
 #
-#  GNU make makefile for the MkMake/MkDep/MkLang/MkImp/bin2c
+#  GNU make makefile for the MkMake/MkDep/MkLang/MkConf/MkImp/bin2c
 #  utilities used during Watt-32 development
 #
 #  DOS versions:   Requires djgpp2 + SLang 1.3+ library installed.
@@ -29,7 +29,7 @@ SLANG_LIBS   = $(shell pkg-config --libs slang)
 CC     = gcc
 CFLAGS = -Os -Wall -g0 -save-temps # -s
 
-UTILS := mkmake mkdep mklang bin2c
+UTILS := mkmake mkdep mklang mkconf bin2c
 
 DJGPP_UTILS := $(addsuffix .exe,$(UTILS)) mkimp.exe dxegen.exe
 WIN32_UTILS := $(addprefix win32/,$(addsuffix .exe,$(UTILS)))
