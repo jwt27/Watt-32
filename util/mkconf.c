@@ -65,12 +65,50 @@ static int skip (const char* prefix, const char** arg)
 
 static void usage (void)
 {
+  const char * const prefix = "  --[en|dis]able-";
+  const int wrap_at         = 80;
+  const int name_len        = 13;
+  const int option_len      = strlen (prefix) + name_len;
+  const int help_len        = wrap_at - option_len;
+  const char *p, *end;
   int i;
 
-  printf("Available options:\n");
+  printf ("Available options:\n");
   for (i = 0; i < NUM_OPTIONS; ++i)
-      printf ("  --[en|dis]able-%-12s %s\n",
-              options[i].name, options[i].help);
+  {
+    p = options[i].help;
+    while (*p)
+    {
+      end = p + strlen (p);
+      if (end - p > help_len)
+      {
+        /* Find last space character before wrap point. */
+        const char *q = p;
+        while (1)
+        {
+          q = strchr (q, ' ');
+          if (q && q - p < help_len)
+             end = q;
+          else break;
+          ++q;
+        }
+      }
+
+      /* Print option name. */
+      if (p == options[i].help)
+         printf ("%s%-*s", prefix, name_len, options[i].name);
+      else
+         printf ("%*c", option_len, ' ');
+
+      /* Print description. */
+      printf ("%.*s\n", (int)(end - p), p);
+
+      p = end;
+
+      /* Skip spaces. */
+      while (*p == ' ') ++p;
+    }
+  }
 }
 
 int main (int argc, char** argv)
