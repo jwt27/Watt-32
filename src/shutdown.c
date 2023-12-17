@@ -39,6 +39,9 @@
 
 #if defined(USE_BSD_API)
 
+static void shutdown_read (Socket *socket);
+static void shutdown_write (Socket *socket);
+
 int W32_CALL shutdown (int s, int how)
 {
   Socket *socket = _socklist_find (s);
@@ -57,33 +60,59 @@ int W32_CALL shutdown (int s, int how)
   switch (how)
   {
     case SHUT_RD:
-         socket->so_state   |=  SS_CANTRCVMORE;
-      /* socket->so_options &= ~SO_ACCEPTCONN; */
-
-         /** \todo For tcp, should send RST if we get
-          *        incoming data. Don't send ICMP error.
-          */
+         shutdown_read (socket);
          return (0);
 
     case SHUT_WR:
-         socket->so_state   |=  SS_CANTSENDMORE;
-         socket->so_state   &= ~SS_ISLISTENING;
-      /* socket->so_options &= ~SO_ACCEPTCONN; */
-
-         /** \todo For tcp, should send FIN when all Tx data
-          *        has been ack'ed.
-          * close_s(s) should be same as shutdown(s,SHUT_WR)
-          */
+         shutdown_write (socket);
          return (0);
 
     case SHUT_RDWR:
-         socket->so_state   |= (SS_CANTRCVMORE | SS_CANTSENDMORE);
-         socket->so_state   &= ~SS_ISLISTENING;
-      /* socket->so_options &= ~SO_ACCEPTCONN; */
+         shutdown_read (socket);
+         shutdown_write (socket);
          return (0);
   }
 
   SOCK_ERRNO (EINVAL);
   return (-1);
 }
+
+static void shutdown_read (Socket *socket)
+{
+  socket->so_state   |=  SS_CANTRCVMORE;
+  /* socket->so_options &= ~SO_ACCEPTCONN; */
+
+  switch (socket->so_type)
+  {
+    case SOCK_PACKET:
+    case SOCK_RAW:
+    case SOCK_DGRAM:
+         break;
+
+    case SOCK_STREAM:
+         /** \todo For tcp, should send RST if we get
+          *        incoming data. Don't send ICMP error.
+          */
+  }
+}
+
+static void shutdown_write (Socket *socket)
+{
+  socket->so_state   |=  SS_CANTSENDMORE;
+  socket->so_state   &= ~SS_ISLISTENING;
+  /* socket->so_options &= ~SO_ACCEPTCONN; */
+
+  switch (socket->so_type)
+  {
+    case SOCK_PACKET:
+    case SOCK_RAW:
+    case SOCK_DGRAM:
+         break;
+
+    case SOCK_STREAM:
+         /* Send FIN as soon as possible. */
+         _tcp_close (socket->tcp_sock);
+  }
+}
+
 #endif  /* USE_BSD_API */
