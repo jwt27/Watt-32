@@ -330,7 +330,7 @@ static int tcp_estab_state (_tcp_Socket **sp, const in_Header *ip,
   _tcp_Socket *s   = *sp;
   int   len;
   long  ldiff;      /* how much still ACK'ed */
-  BOOL  did_tx;
+  BOOL  ack_scheduled = s->recv_win < (int)s->adv_win;
 
   /* handle lost SYN
    */
@@ -364,13 +364,12 @@ static int tcp_estab_state (_tcp_Socket **sp, const in_Header *ip,
        len = intel16 (ip->length) - in_GetHdrLen (ip);
   else len = intel16 (ip6->len);
 
-  if (tcp_process_data (s, tcp, len, &flags) < 0)
+  len = tcp_process_data (s, tcp, len, &flags);
+  if (len < 0)
   {
     TCP_SEND (s);  /* An out-of-order or missing segment; do fast ACK */
     return (1);
   }
-
-  did_tx = FALSE;
 
   if (s->state != tcp_StateCLOSWT  &&
       (flags & tcp_FlagFIN)        &&
@@ -385,7 +384,6 @@ static int tcp_estab_state (_tcp_Socket **sp, const in_Header *ip,
       /* Implied CLOSE-WAIT -> LAST-ACK transition here
        */
       TCP_SEND (s);
-      did_tx = TRUE;
 
       TRACE_CONSOLE (2, "tcp_estab_state(): got FIN\n");
 
@@ -394,63 +392,39 @@ static int tcp_estab_state (_tcp_Socket **sp, const in_Header *ip,
       s->unhappy   = TRUE;
       s->timeout   = set_timeout (tcp_LASTACK_TIME); /* Added AGW 6 Jan 2001 */
       s->state     = tcp_StateLASTACK;
+
+      return (0);
     }
     else
     {
       s->unhappy = TRUE;
       TCP_SEND (s);  /* force a retransmit, no state change */
-      did_tx = TRUE;
+      return (0);
     }
   }
-
-  /*
-   * Eliminate the spurious ACK messages bug.
-   * For the window update, the length should be the
-   * data length only, so exclude the TCP header size
-   *  -- Joe <jdhagen@itis.com>
-   */
-  len -= (tcp->offset << 2);
 
   /* Peer ACKed some of our data, continue sending more.
    */
   if (ldiff > 0 && s->tx_datalen > (unsigned long)s->send_una)
-     goto send_now;
+  {
+    s->karn_count = 0;
+    TCP_SEND (s);
+    return (0);
+  }
 
-  /* Send ACK for received data.
+  /* Schedule delayed-ACK for received data, in case
+   * tcp_read() doesn't get to it in time.
    */
   if (len > 0)
   {
-    /* Need to ACK and update window, but how urgent ??
-     * We need a better criteria for doing Fast-ACK.
-     */
-    if (s->adv_win < s->max_seg)
-    {
-    send_now:
-      TRACE_FILE ("tcp_estab_state (%u): FastACK: ldiff %ld, "
-                  "UNA %ld, MS-right %ld\n",
-                  __LINE__, ldiff, s->send_una,
-                  s->missed_seq[0] != s->missed_seq[1] ?
-                  (u_long)(s->missed_seq[0] - s->recv_next) : 0);
-      s->karn_count = 0;
-      TCP_SEND (s);
-      did_tx = TRUE;
-
-      if (s->adv_win == 0)  /* need to open closed window in retransmitter */
-      {
-        s->locflags |= LF_WINUPDATE;
-        s->unhappy = TRUE;
-      }
-    }
-    else
-    {
-      TCP_SENDSOON (s);          /* delayed ACK */
-      did_tx = TRUE;
-    }
+    if (!ack_scheduled)
+       TCP_SENDSOON (s);
+    return (0);
   }
 
   /* Check if we need to reply to keep-alive segment
    */
-  if (!did_tx && (len == 0) && (seqnum == s->recv_next-1) &&
+  if ((seqnum == s->recv_next-1) &&
       ((flags & tcp_FlagACK) == tcp_FlagACK) &&  /* ACK only */
       (s->state == tcp_StateESTAB))
   {
@@ -866,6 +840,7 @@ copy_in_order (_tcp_Socket *s, const BYTE *data, unsigned len)
   memcpy (s->rx_data + s->rx_datalen, data, len);
   s->recv_next  += len;
   s->rx_datalen += len;
+  s->recv_win   -= len;
 }
 
 /*
@@ -907,6 +882,7 @@ data_in_order (_tcp_Socket *s, const BYTE *data, unsigned len, unsigned diff)
     TRACE_FILE ("data_in_order (%u): Use %lu out-of-order bytes\n",
                 __LINE__, (u_long)(s->missed_seq[1] - s->missed_seq[0]));
     s->rx_datalen   += (s->missed_seq[1] - s->missed_seq[0]);
+    s->recv_win     -= (s->missed_seq[1] - s->missed_seq[0]);
     s->recv_next     = s->missed_seq[1];
     s->missed_seq[0] = s->missed_seq[1] = 0;
 
@@ -1117,7 +1093,7 @@ static int tcp_process_data (_tcp_Socket *s, const tcp_Header *tcp,
   {
     data_in_order (s, data, len, ldiff);
     s->unhappy = (s->tx_datalen > 0);
-    return (0);
+    return (len);
   }
 
   STAT (tcpstats.tcps_rcvduppack++);      /* increment dup-ACK count */

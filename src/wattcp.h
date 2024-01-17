@@ -299,7 +299,7 @@ struct ulong_long {
  * UDP/TCP socket local flags (locflags) bits.
  * Mostly used to support the BSD-socket API.
  */
-#define LF_WINUPDATE    0x00001   /**< need to send a window-update */
+#define LF_WINUPDATE    0x00001   /**< no longer used */
 #define LF_NOPUSH       0x00002   /**< don't push on write */
 #define LF_NOOPT        0x00004   /**< don't use tcp options */
 #define LF_REUSEADDR    0x00008   /**< \todo Reuse address not supported */
@@ -607,6 +607,7 @@ typedef struct tcp_Socket {
 
         UINT         window;            /**< other guy's window */
         UINT         adv_win;           /**< our last advertised window */
+        long         recv_win;          /**< our current remaining window */
 
         BYTE         cwindow;           /**< Congestion window */
         BYTE         wwindow;           /**< Van Jacobson's algorithm */
