@@ -619,7 +619,9 @@ typedef struct tcp_Socket {
         UINT         rto;               /**< retransmission timeout */
         BYTE         karn_count;        /**< count of packets */
         BYTE         tos;               /**< TOS from IP-header */
-        WORD         fill_5;
+
+        BYTE         dup_acks;          /**< number of dup-ACKs we sent recently */
+        BYTE         fill_5;
 
         DWORD        rtt_time;          /**< Round Trip Time value */
         DWORD        rtt_lasttran;      /**< RTT at last transmission */

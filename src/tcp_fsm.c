@@ -367,9 +367,18 @@ static int tcp_estab_state (_tcp_Socket **sp, const in_Header *ip,
   len = tcp_process_data (s, tcp, len, &flags);
   if (len < 0)
   {
-    TCP_SEND (s);  /* An out-of-order or missing segment; do fast ACK */
+    /* An out-of-order or missing segment; do fast ACK.
+     * Three should be enough.  If those get dropped,
+     * retransmitter will send more eventually.
+     */
+    if (s->dup_acks < 3)
+    {
+      TCP_SEND (s);
+      ++s->dup_acks;
+    }
     return (1);
   }
+  s->dup_acks = 0;
 
   if (s->state != tcp_StateCLOSWT  &&
       (flags & tcp_FlagFIN)        &&
@@ -401,6 +410,14 @@ static int tcp_estab_state (_tcp_Socket **sp, const in_Header *ip,
       TCP_SEND (s);  /* force a retransmit, no state change */
       return (0);
     }
+  }
+
+  /* Send fast-ACK after retransmission.
+   */
+  if (len > 0 && s->missed_seq[0] != s->missed_seq[1])
+  {
+    TCP_SEND (s);
+    return (0);
   }
 
   /* Peer ACKed some of our data, continue sending more.
@@ -847,7 +864,7 @@ copy_in_order (_tcp_Socket *s, const BYTE *data, unsigned len)
  * Handle any new data that increments the 'recv_next' index.
  * 'ldiff >= 0'.
  */
-static void
+static int
 data_in_order (_tcp_Socket *s, const BYTE *data, unsigned len, unsigned diff)
 {
   /* Skip data before recv_next. We must be left with some data or
@@ -892,6 +909,11 @@ data_in_order (_tcp_Socket *s, const BYTE *data, unsigned len, unsigned diff)
        */
       copy_in_order (s, data + ms_end, len - ms_end);
     }
+
+    /* Send fast-ACK to notify peer that we caught up.
+     */
+    s->dup_acks = 0;
+    len = -1;
   }
 
   TRACE_FILE ("data_in_order (%u): edges %lu/%lu, recv.next %lu\n",
@@ -900,6 +922,8 @@ data_in_order (_tcp_Socket *s, const BYTE *data, unsigned len, unsigned diff)
 
   TRACE_FILE ("data_in_order (%u): new data now ends at %u\n",
               __LINE__, s->rx_datalen);
+
+  return (len);
 }
 
 /*
@@ -1091,7 +1115,7 @@ static int tcp_process_data (_tcp_Socket *s, const tcp_Header *tcp,
 
   if (ldiff >= 0)
   {
-    data_in_order (s, data, len, ldiff);
+    len = data_in_order (s, data, len, ldiff);
     s->unhappy = (s->tx_datalen > 0);
     return (len);
   }
